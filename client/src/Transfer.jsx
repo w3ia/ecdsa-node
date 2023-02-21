@@ -1,14 +1,28 @@
 import { useState } from "react";
 import server from "./server";
+import { ADDRESSES } from "./addresses";
+import { utf8ToBytes } from "ethereum-cryptography/utils";
+import { keccak256 } from "ethereum-cryptography/keccak";
+import * as secp from "ethereum-cryptography/secp256k1";
 
 function Transfer({ address, setBalance }) {
   const [sendAmount, setSendAmount] = useState("");
   const [recipient, setRecipient] = useState("");
+  const [messageHash] = useState("");
 
   const setValue = (setter) => (evt) => setter(evt.target.value);
 
   async function transfer(evt) {
     evt.preventDefault();
+
+    // hash a message, in this case the sendAmount
+    const hash = keccak256(utf8ToBytes(sendAmount));
+
+    // Set for recovery bit
+    const opts = { recovered: true };
+
+    // sign the message
+    const [sig, recoveryBit] = await secp.sign(hash, ADDRESSES[address], opts);
 
     try {
       const {
@@ -17,6 +31,10 @@ function Transfer({ address, setBalance }) {
         sender: address,
         amount: parseInt(sendAmount),
         recipient,
+        // following will be used to recover pub key in order to verify sig on server side
+        hash, 
+        sig,
+        recoveryBit
       });
       setBalance(balance);
     } catch (ex) {
